@@ -94,6 +94,35 @@ const mapTopTracks = (artistUnion) => {
   });
 };
 
+// Path segments that sit in front of the account name (youtube.com/c/name, facebook.com/pages/name/123).
+const HANDLE_PATH_PREFIXES = ["c", "channel", "user", "pages"];
+
+const extractHandle = (url) => {
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean);
+    const segment = HANDLE_PATH_PREFIXES.includes(segments[0]) ? segments[1] : segments[0];
+    return segment ? decodeURIComponent(segment).replace(/^@/, "") : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+// Links the artist set in their Spotify profile ("About" section): FACEBOOK, INSTAGRAM, TWITTER, WIKIPEDIA.
+const mapSocials = (artistUnion) => {
+  const items = artistUnion?.profile?.externalLinks?.items || [];
+  return items
+    .filter((item) => item?.url)
+    .map((item) => {
+      const platform = String(item.name || "").toLowerCase() || "unknown";
+      return {
+        platform,
+        url: item.url,
+        // A Wikipedia link is an article, not an account.
+        handle: platform === "wikipedia" ? null : extractHandle(item.url),
+      };
+    });
+};
+
 app.get("/api", async (req, res) => {
   let browser;
   try {
@@ -172,6 +201,7 @@ app.get("/api", async (req, res) => {
         name: artistName,
         monthlyListeners,
         monthlyListenersNumeric,
+        socials: mapSocials(artistUnion),
       },
       trackListData,
       stats: {
